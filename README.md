@@ -1,2 +1,2 @@
 # python_first_steps
-ДЗ по введени в Python
+ДЗ по введению в Python
