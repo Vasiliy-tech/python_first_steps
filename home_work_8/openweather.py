@@ -151,7 +151,7 @@ class WeatherDb:
                     Дата            date,
                     Температура     integer,
                     id_погоды       integer
-                );
+                    );
                 """)
             print('База данных {} создана'.format(self.name_of_db))
             success = True
@@ -198,7 +198,10 @@ class WeatherDb:
         self.conn.commit()
 
     def close_db(self):
+        access = False
         self.conn.close()
+        access = True
+        return access
 
 
 class FindWeather:
@@ -206,6 +209,8 @@ class FindWeather:
         self.list_of_countries = None
         self.id_of_selected_cities = []
         self.response_json = None
+        self.app_id = '7bdac68cd4f963bf98aa0d44d3dfddf8'
+        self.units = 'metric'
         with open('city.list.json', 'r', encoding='UTF-8')as f:
             self.load_of_city_list = json.load(f)
 
@@ -213,9 +218,6 @@ class FindWeather:
         countries = set([el['country'] for el in self.load_of_city_list])
         countries.remove('')
         return sorted(countries)
-
-    # def find_id_of_selected_cities_in_country(self, country: str,
-    #                                           cities: list):
 
     def make_response_json(self, country: str, cities: list):
         selected_cities = []
@@ -228,19 +230,47 @@ class FindWeather:
         if len(self.id_of_selected_cities) > 1:
             response = requests.get(
                 'http://api.openweathermap.org/data/2.5/group',
-                params={'id': ','.join(
-                    map(str, self.id_of_selected_cities)),
-                    'units': 'metric',
-                    'appid': '7bdac68cd4f963bf98aa0d44d3dfddf8'})
+                params={
+                    'id': ','.join(map(str, self.id_of_selected_cities)),
+                    'units': self.units,
+                    'appid': self.app_id
+                })
         else:
             response = requests.get(
                 'http://api.openweathermap.org/data/2.5/weather',
-                params={'id': str(self.id_of_selected_cities[0]),
-                        'units': 'metric',
-                        'appid': '7bdac68cd4f963bf98aa0d44d3dfddf8'})
+                params={
+                    'id': str(self.id_of_selected_cities[0]),
+                    'units': self.units,
+                    'appid': self.app_id
+                })
         self.response_json = response.json()
         print(response.url)
         return self.response_json
+
+
+def make_response(find_weather: FindWeather):
+    while len(find_weather.id_of_selected_cities) == 0:
+        country = input('Введите обозначение страны')
+        cities = (input('Введите название городов через пробел')).split()
+        try:
+            json_response = find_weather.make_response_json(country, cities)
+        except IndexError:
+            continue
+    return json_response
+
+
+def operation_with_weather_bd(weather: WeatherDb, weather_info: FindWeather):
+    if len(weather_info.id_of_selected_cities) > 1:
+        for city in weather_info.response_json['list']:
+            try:
+                weather.insert_data(city)
+            except sqlite3.IntegrityError:
+                weather.update_data(city)
+    else:
+        try:
+            weather.insert_data(weather_info.response_json)
+        except sqlite3.IntegrityError:
+            weather.update_data(weather_info.response_json)
 
 
 if __name__ == '__main__':
@@ -248,23 +278,7 @@ if __name__ == '__main__':
     weather_db = WeatherDb(name_of_db)
     weather_finder = FindWeather()
     print(weather_finder.make_list_of_countries())
-    while len(weather_finder.id_of_selected_cities) == 0:
-        country = input('Введите обозначение страны')
-        cities = (input('Введите название городов через пробел')).split()
-        try:
-            weather_finder.make_response_json(country,cities)
-        except IndexError:
-            continue
     weather_db.make_db()
-    if len(weather_finder.id_of_selected_cities) > 1:
-        for city in weather_finder.response_json['list']:
-            try:
-                weather_db.insert_data(city)
-            except sqlite3.IntegrityError:
-                weather_db.update_data(city)
-    else:
-        try:
-            weather_db.insert_data(weather_finder.response_json)
-        except sqlite3.IntegrityError:
-            weather_db.update_data(weather_finder.response_json)
+    make_response(weather_finder)
+    operation_with_weather_bd(weather_db, weather_finder)
     print(weather_db)

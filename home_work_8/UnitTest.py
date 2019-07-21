@@ -25,6 +25,9 @@ json_example_for_single_city = {
             "sunset": 1563030112},
     "timezone": 25200, "id": 1496747,
     "name": "Novosibirsk", "cod": 200}
+country = 'RU'
+city = ['Moscow']
+cities = ['Moscow', 'Ufa']
 if os.path.exists(path_to_weather_db):
     os.remove(path_to_weather_db)
 weather_db = openweather.WeatherDb(name_of_db)
@@ -40,6 +43,14 @@ class TestWeatherDb(unittest.TestCase):
             os.remove(name_db_for_test)
         weather_db_for_make_db = openweather.WeatherDb(name_db_for_test)
         self.assertTrue(weather_db_for_make_db.make_db())
+        os.remove(name_db_for_test)
+
+    def test_make_db_when_db_exist(self):
+        name_of_db_for_make_db = 'test_make_db_when_db_exist.db'
+        db_for_make_db_test = openweather.WeatherDb(name_of_db_for_make_db)
+        db_for_make_db_test.make_db()
+        self.assertFalse(db_for_make_db_test.make_db())
+        os.remove(name_of_db_for_make_db)
 
     def test_insert_data(self):
         self.assertTrue(weather_db.insert_data(json_example_for_single_city))
@@ -53,22 +64,57 @@ class TestWeatherDb(unittest.TestCase):
         new_time = weather_db.cur.fetchall()[0][2]
         self.assertTrue(old_time != new_time)
 
+    def test_str_weather_db(self):
+        self.assertTrue(len(weather_db.__str__()) != 0)
+
+    def test_close_db(self):
+        name_for_test_close_db = 'test_for_close_db.db'
+        weather_db_for_test_close = openweather.WeatherDb(
+            name_for_test_close_db)
+        self.assertTrue(weather_db_for_test_close.close_db())
+        os.remove(name_for_test_close_db)
+
     def test_make_list_of_countries(self):
         self.assertTrue(len(weather_finder.make_list_of_countries()) > 0)
 
-    def test_make_response_json_single_city(self):
-        country = 'RU'
-        cities = ['Moscow']
+    def test_make_response_json(self):
         self.assertTrue(
-            weather_finder.make_response_json(country, cities)['name'] ==
+            weather_finder.make_response_json(country, city)['name'] ==
             cities[0])
-
-    def test_make_response_json_single_city(self):
-        country = 'RU'
-        cities = ['Moscow', 'Ufa']
         self.assertTrue(len(
             weather_finder.make_response_json(country, cities)['list'])
                         >= len(cities))
+        with self.assertRaises(IndexError):
+            weather_finder.make_response_json('No country', ['No city'])
+
+    def test_make_response(self):
+        make_response = openweather.make_response(weather_finder)
+        self.assertTrue(type(make_response) is dict)
+
+    def test_operation_with_weather_bd(self):
+        name_for_test_operation = 'test_for_operation_db.db'
+        weather_db_for_test_operation = openweather.WeatherDb(
+            name_for_test_operation)
+        weather_db_for_test_operation.make_db()
+        weather_finder.make_response_json(country, city)
+        openweather.operation_with_weather_bd(weather_db_for_test_operation,
+                                              weather_finder)
+        weather_db_for_test_operation.cur.execute("select * from project")
+        sql_tab = weather_db_for_test_operation.cur.fetchall()
+        self.assertTrue(len(sql_tab) == 1)
+        weather_finder.make_response_json(country, city)
+        openweather.operation_with_weather_bd(weather_db_for_test_operation,
+                                              weather_finder)
+        weather_db_for_test_operation.cur.execute("select * from project")
+        sql_tab = weather_db_for_test_operation.cur.fetchall()
+        self.assertTrue(len(sql_tab) == 1)
+        weather_finder.make_response_json(country, cities)
+        openweather.operation_with_weather_bd(weather_db_for_test_operation,
+                                              weather_finder)
+        weather_db_for_test_operation.cur.execute("select * from project")
+        sql_tab = weather_db_for_test_operation.cur.fetchall()
+        self.assertTrue(len(sql_tab) == 2)
+        os.remove(name_for_test_operation)
 
 
 if __name__ == '__main__':
